@@ -234,42 +234,43 @@ StreamingS3.prototype.sendToS3 = function() {
   if (!this.uploadStart) this.uploadStart = Date.now();
 
   function uploadChunk(chunk, next) {
-    if (!self.uploadId || !self.initiated || self.failed || chunk.uploading || chunk.finished || chunk.number < 0) return next();
+    setTimeout(function() {
+      if (!self.uploadId || !self.initiated || self.failed || chunk.uploading || chunk.finished || chunk.number < 0) return next();
 
-    chunk.uploading = true;
-    chunk.client = chunk.client ? chunk.client : self.getNewS3Client();
+      chunk.uploading = true;
+      chunk.client = chunk.client ? chunk.client : self.getNewS3Client();
 
-    var partS3Params = {
-      UploadId: self.uploadId,
-      PartNumber: chunk.number,
-      Body: chunk
-    };
+      var partS3Params = {
+        UploadId: self.uploadId,
+        PartNumber: chunk.number,
+        Body: chunk
+      };
 
-    partS3Params = extendObj(partS3Params, self.s3ObjectParams);
-    chunk.client.uploadPart(partS3Params, function (err, data) {
-      if (err) {
-        if (err.code == 'RequestTimeout') {
-          if (chunk.retries >= self.options.retries) return next(err);
-          else {
-            chunk.uploading = false;
-            chunk.retries++;
-            return uploadChunk(chunk, next);
+      partS3Params = extendObj(partS3Params, self.s3ObjectParams);
+      chunk.client.uploadPart(partS3Params, function (err, data) {
+        if (err) {
+          if (err.code == 'RequestTimeout') {
+            if (chunk.retries >= self.options.retries) return next(err);
+            else {
+              chunk.uploading = false;
+              chunk.retries++;
+              return uploadChunk(chunk, next);
+            }
+          } else {
+            chunk.finished = true;
+            return next(err);
           }
         } else {
+          // Assert ETag presence.
+          if (!data.ETag) return next(new Error('AWS SDK returned invalid object when part uploaded! Expecting Etag.'));
+          // chunk.number starts at 1, while array starts at 0.
+          self.uploadedChunks[chunk.number] = data.ETag;
           chunk.finished = true;
-          return next(err);
+          self.emit('part', chunk.number);
+          return next();
         }
-      } else {
-        // Assert ETag presence.
-        if (!data.ETag) return next(new Error('AWS SDK returned invalid object when part uploaded! Expecting Etag.'));
-        // chunk.number starts at 1, while array starts at 0.
-        self.uploadedChunks[chunk.number] = data.ETag;
-        chunk.finished = true;
-        self.emit('part', chunk.number);
-        return next();
-      }
-    });
-
+      });
+    }, 0);
   }
 
   // Remove finished chunks, save memory :)
