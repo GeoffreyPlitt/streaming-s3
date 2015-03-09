@@ -250,15 +250,19 @@ StreamingS3.prototype.sendToS3 = function() {
       chunk.client.uploadPart(partS3Params, function (err, data) {
         if (err) {
           if (err.code == 'RequestTimeout') {
-            if (chunk.retries >= self.options.retries) return next(err);
-            else {
+            if (chunk.retries >= self.options.retries) {
+              setTimeout(next, 0, err);
+              return;
+            } else {
               chunk.uploading = false;
               chunk.retries++;
-              return uploadChunk(chunk, next);
+              setTimeout(uploadChunk, 0, chunk, next);
+              return;
             }
           } else {
             chunk.finished = true;
-            return next(err);
+            setTimeout(next, 0, err);
+            return;
           }
         } else {
           // Assert ETag presence.
@@ -266,8 +270,11 @@ StreamingS3.prototype.sendToS3 = function() {
           // chunk.number starts at 1, while array starts at 0.
           self.uploadedChunks[chunk.number] = data.ETag;
           chunk.finished = true;
-          self.emit('part', chunk.number);
-          return next();
+          setTimeout(function() {
+            self.emit('part', chunk.number);
+            next();
+          }, 0);
+          return;
         }
       });
     }, 0);
