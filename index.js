@@ -295,7 +295,7 @@ StreamingS3.prototype.sendToS3 = function() {
         return chunk.finished === false;
       });
 
-      if (self.chunks.length === 0 && !self.waiting && self.totalChunks == Object.keys(self.uploadedChunks).length) {
+      if (self.chunks.length === 0 && !self.waiting && !self.reading && self.totalChunks == Object.keys(self.uploadedChunks).length) {
         if (self.uploadStart) {
           self.stats.uploadTime = Math.round((Date.now() - self.uploadStart)/1000, 3);
           self.stats.uploadSpeed = Math.round(self.totalBytes/(self.stats.uploadTime/1000), 2);
